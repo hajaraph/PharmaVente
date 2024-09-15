@@ -40,7 +40,7 @@ public class Stock {
     public String toString() {
         return "Stock{" +
                 "quantite=" + quantite +
-                ", produit=" + produit.nomProduit() +
+                ", produit=" + produit.getNomProduit() +
                 '}';
     }
 }

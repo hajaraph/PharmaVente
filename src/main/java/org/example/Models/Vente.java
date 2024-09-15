@@ -61,7 +61,7 @@ public class Vente {
 
     // Méthode pour calculer le prix total de la vente
     public void calculerPrixTotal() {
-        this.prixTotal = this.quantiteVendue * this.produit.prix();
+        this.prixTotal = this.quantiteVendue * this.produit.getPrixProduit();
     }
 
     // toString() pour afficher les informations de la vente
@@ -69,7 +69,7 @@ public class Vente {
     public String toString() {
         return "Vente{" +
                 "idVente=" + idVente +
-                ", produit=" + produit.nomProduit() +
+                ", produit=" + produit.getNomProduit() +
                 ", quantiteVendue=" + quantiteVendue +
                 ", prixTotal=" + prixTotal +
                 ", dateVente=" + dateVente +

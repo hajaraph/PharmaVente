@@ -5,16 +5,18 @@ import org.example.Models.Produit;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ProduitForm extends JFrame {
 
+    private static final Logger LOGGER = Logger.getLogger(ProduitForm.class.getName());
     private JTextField nomTextField;
     private JTextField prixTextField;
     private JTable produitTable;
@@ -82,15 +84,15 @@ public class ProduitForm extends JFrame {
             double prix = Double.parseDouble(prixTextField.getText());
 
             Produit produit = new Produit(nomProduit, prix);
-            System.out.println("Produit créé: " + produit.nomProduit() + ", Prix: " + produit.prix());
+            System.out.println("Produit créé: " + produit.getNomProduit() + ", Prix: " + produit.getPrixProduit());
 
             // Enregistrer dans la base de données
             try (Connection connection = DbConnexion.getConnection()) {
                 if (connection != null) {
-                    // Vérifier si le produit existe déjà
-                    String selectSql = "SELECT * FROM produit WHERE nomProduit=?";
+                    // Vérifier si le produit existe déjà par nom
+                    String selectSql = "SELECT idProduit FROM produit WHERE nomProduit=?";
                     PreparedStatement selectStatement = connection.prepareStatement(selectSql);
-                    selectStatement.setString(1, produit.nomProduit());
+                    selectStatement.setString(1, produit.getNomProduit());
                     ResultSet resultSet = selectStatement.executeQuery();
 
                     if (resultSet.next()) {
@@ -99,8 +101,8 @@ public class ProduitForm extends JFrame {
                         // Insérer le produit
                         String insertSql = "INSERT INTO produit (nomProduit, prixProduit) VALUES (?, ?)";
                         PreparedStatement insertStatement = connection.prepareStatement(insertSql);
-                        insertStatement.setString(1, produit.nomProduit());
-                        insertStatement.setDouble(2, produit.prix());
+                        insertStatement.setString(1, produit.getNomProduit());
+                        insertStatement.setDouble(2, produit.getPrixProduit());
                         insertStatement.executeUpdate();
                         System.out.println("Produit inséré dans la base de données.");
 
@@ -109,7 +111,7 @@ public class ProduitForm extends JFrame {
                     }
                 }
             } catch (SQLException ex) {
-                ex.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error loading data", ex);
             }
         });
 
@@ -136,22 +138,27 @@ public class ProduitForm extends JFrame {
                 }
             }
         } catch (SQLException ex) {
-            ex.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Error loading data", ex);
         }
     }
 
     // Renderer pour les boutons
-    static class ButtonRenderer extends JPanel implements javax.swing.table.TableCellRenderer {
+    static class ButtonRenderer extends JPanel implements TableCellRenderer {
+
         public ButtonRenderer() {
-            setLayout(new FlowLayout());
+            setLayout(new FlowLayout(FlowLayout.CENTER, 5, 0));
+            JButton editButton = new JButton("Modifier");
+            add(editButton);
+            JButton deleteButton = new JButton("Supprimer");
+            add(deleteButton);
+
+            // Ajuster les tailles des boutons
+            editButton.setPreferredSize(new Dimension(100, 30));
+            deleteButton.setPreferredSize(new Dimension(100, 30));
         }
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            JButton editButton = new JButton("Modifier");
-            JButton deleteButton = new JButton("Supprimer");
-            add(editButton);
-            add(deleteButton);
             return this;
         }
     }
@@ -159,6 +166,7 @@ public class ProduitForm extends JFrame {
     // Editor pour les boutons
     class ButtonEditor extends DefaultCellEditor {
         private final JPanel panel;
+        private int editingRow;
 
         public ButtonEditor(JCheckBox checkBox) {
             super(checkBox);
@@ -169,46 +177,53 @@ public class ProduitForm extends JFrame {
             panel.add(editButton);
             panel.add(deleteButton);
 
+            // Ajuster les tailles des boutons
+            editButton.setPreferredSize(new Dimension(100, 30));
+            deleteButton.setPreferredSize(new Dimension(100, 30));
+
             // Action pour le bouton Modifier
-            editButton.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    // Logique pour modifier le produit
-                    int row = produitTable.getSelectedRow();
-                    String nom = (String) produitTable.getValueAt(row, 1);
-                    double prix = (double) produitTable.getValueAt(row, 2);
-                    System.out.println("Modifier le produit: " + nom + ", Prix: " + prix);
-                }
+            editButton.addActionListener(e -> {
+                int row = produitTable.convertRowIndexToModel(editingRow);
+                int id = (int) produitTable.getModel().getValueAt(row, 0);
+                String nom = (String) produitTable.getModel().getValueAt(row, 1);
+                double prix = (double) produitTable.getModel().getValueAt(row, 2);
+                System.out.println("Modifier le produit ID: " + id + ", Nom: " + nom + ", Prix: " + prix);
+                // Logique pour modifier le produit (à implémenter)
+                fireEditingStopped(); // Important pour arrêter l'édition
             });
 
             // Action pour le bouton Supprimer
-            deleteButton.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    int row = produitTable.getSelectedRow();
-                    int id = (int) produitTable.getValueAt(row, 0);
+            deleteButton.addActionListener(e -> {
+                int row = produitTable.convertRowIndexToModel(editingRow);
+                int id = (int) produitTable.getModel().getValueAt(row, 0);
 
-                    // Supprimer le produit de la base de données
-                    try (Connection connection = DbConnexion.getConnection()) {
-                        if (connection != null) {
-                            String deleteSql = "DELETE FROM produit WHERE idProduit=?";
-                            PreparedStatement deleteStatement = connection.prepareStatement(deleteSql);
-                            deleteStatement.setInt(1, id);
-                            deleteStatement.executeUpdate();
-                            System.out.println("Produit supprimé de la base de données.");
+                // Supprimer le produit de la base de données
+                try (Connection connection = DbConnexion.getConnection()) {
+                    if (connection != null) {
+                        String deleteSql = "DELETE FROM produit WHERE idProduit=?";
+                        PreparedStatement deleteStatement = connection.prepareStatement(deleteSql);
+                        deleteStatement.setInt(1, id);
+                        deleteStatement.executeUpdate();
+                        System.out.println("Produit supprimé de la base de données.");
 
-                            // Rafraîchir les données après suppression
-                            loadData();
-                        }
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
+                        // Rafraîchir les données après suppression
+                        loadData();
                     }
+                } catch (SQLException ex) {
+                    LOGGER.log(Level.SEVERE, "Error loading data", ex);
                 }
+                fireEditingStopped(); // Important pour arrêter l'édition
             });
         }
 
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+            editingRow = row;
+            return panel;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
             return panel;
         }
     }
